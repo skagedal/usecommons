@@ -1,14 +1,84 @@
-import urllib, urllib2
-from wikitools import wiki, api, page
+# Standard Python libraries
+import urllib, urllib2, os.path, json, re
 from distutils.dir_util import mkpath
-import os.path, json
+
+# Third party libraries
+from wikitools import wiki, page, category
+from bs4 import BeautifulSoup
 
 USER_AGENT = 'CommonsCredits/0.1; http://github.com/skagedal/commons-credits/'
 
+RE_LICENSE_CATEGORIES = [
+    (re.compile('Category:' + _re), txt) 
+    for (_re, txt) in
+    (r'CC[\- _]BY-SA.*', 'CC-BY-SA'),
+    (r'CC[\- _]BY.*', 'CC-BY'),
+    (r'CC[\- _]Zero.*', 'CC0'),
+    (r'GFDL.*', 'GNU Free Documentation License'),
+    (r'PD[\- _]Old.*', 'Public Domain'),
+    (r'PD[\- _]self.*', 'Public Domain'),
+    (r'PD[\- _]author.*', 'Public Domain'),
+    (r'PD.*', 'Public Domain'),
+    (r'FAL', 'Art Libre - Free Art'),
+    (r'Images requiring attribution', 'Attribution'),
+    (r'Copyrighted free use.*', 'Copyrighted Free Use'),
+    (r'Mozilla Public License', 'Mozilla Public License'),
+    (r'GPL', 'GNU General Public License'),
+    (r'LGPL', 'GNU Lesser General Public License'),
+    (r'Free screenshot.*', 'Free screenshot')
+]
+
 class Credits:
-    def __init__(self, html, categories):
+    def __init__(self, title, url, html, categories):
+        self.title = title
+        self.url = url
         self.html = html
+        self.soup = BeautifulSoup(html)
         self.categories = categories
+    
+    def get_table_entry(self, id):
+        try:
+            td = self.soup.find(id = id).find_next_sibling('td')
+            return "".join(map(unicode, td.contents))
+        except:
+            return None
+
+    def description(self):
+        return self.get_table_entry('fileinfotpl_desc') or ""
+
+    def date(self):
+        return self.get_table_entry('fileinfotpl_date') or ""
+
+    def author(self):
+        # TODO check if there's a id="creator", if so just use that.
+        return self.get_table_entry('fileinfotpl_aut') or ""
+
+        
+    def source(self):
+        return self.get_table_entry('fileinfotpl_src') or ""
+
+    def permission(self):
+        return self.get_table_entry('fileinfotpl_perm') or ""
+
+    def licenses(self):
+        licenses = []
+        for cat in self.categories:
+            for (re_, txt) in RE_LICENSE_CATEGORIES:
+                if (re_.match(cat)):
+                    licenses += [txt]
+        return licenses
+
+
+    def explicit_credit_line(self):
+        pass
+
+    def commonslink(self, text):
+        return '<a href="%s">%s</a>' % (self.url, text)
+
+    def credit_line(self):
+        # Explicit credit line if there is one, otherwise build one
+        return self.author() + " / " + ", ".join(self.licenses()) + " " + \
+            self.commonslink("(Wikimedia Commons)")
 
 class Cache:
     """Provides caching. Currently caches forever."""
@@ -44,7 +114,7 @@ class Commons:
 
     def site(self):
         if self._site is None:
-            self._site = wiki.Wiki(base_url + '/w/api.php')
+            self._site = wiki.Wiki(self.base_url + '/w/api.php')
         return self._site
 
     def getHTML(self, title):
@@ -59,7 +129,9 @@ class Commons:
             return self.getHTML(title)
 
         cache = Cache(dir = 'cache')
-        return Credits(cache.get(title + '.txt', _gethtml, False),
+        return Credits(title, 
+                       self.base_url + '/wiki/' + title,
+                       cache.get(title + '.txt', _gethtml, False),
                        cache.get(title + '.cats', _getcats, True))
 
 
@@ -69,3 +141,7 @@ if __name__ == "__main__":
     credits = commons.getCredits(title)
     print (credits.categories)
     print (len(credits.html))
+    print (credits.author())
+    print (credits.permission())
+
+    
