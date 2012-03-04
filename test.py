@@ -58,5 +58,9 @@ def write_html(htmlfilename, titles):
 </body>
 </html>""")
 
-write_html('test.html', titles)
+def main():
+    write_html('test.html', titles)
+
+main()
+
 

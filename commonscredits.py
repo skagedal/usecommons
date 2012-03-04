@@ -28,6 +28,9 @@ RE_LICENSE_CATEGORIES = [
     (r'Free screenshot.*', 'Free screenshot')
 ]
 
+def _contents_html(tag):
+    return "".join(map(unicode, tag.contents))
+
 class Credits:
     def __init__(self, title, url, html, categories):
         self.title = title
@@ -36,29 +39,41 @@ class Credits:
         self.soup = BeautifulSoup(html)
         self.categories = categories
     
-    def get_table_entry(self, id):
-        try:
-            td = self.soup.find(id = id).find_next_sibling('td')
-            return "".join(map(unicode, td.contents))
-        except:
-            return None
+    def get_td_soup(self, id):
+        td1 = self.soup.find(id = id)
+        if not td1 is None:
+            return td1.find_next_sibling('td')
+        return None
+
+    def get_entry(self, id):
+        td = self.get_td_soup(id)
+        return _contents_html(td) if td else None
 
     def description(self):
-        return self.get_table_entry('fileinfotpl_desc') or ""
+        return self.get_entry('fileinfotpl_desc') or ""
 
     def date(self):
-        return self.get_table_entry('fileinfotpl_date') or ""
+        return self.get_entry('fileinfotpl_date') or ""
+
+    def raw_author(self):
+        return self.get_entry('fileinfotpl_aut') or ""
 
     def author(self):
-        # TODO check if there's a id="creator", if so just use that.
-        return self.get_table_entry('fileinfotpl_aut') or ""
-
+        td = self.get_td_soup('fileinfotpl_aut')
+        if td is None:
+            return ""
+        # Check for use of {{Creator}} template
+        creator = td.find(id = 'creator')
+        if creator is not None:
+            return _contents_html(creator)
+        else:
+            return _contents_html(td)
         
     def source(self):
-        return self.get_table_entry('fileinfotpl_src') or ""
+        return self.get_entry('fileinfotpl_src') or ""
 
     def permission(self):
-        return self.get_table_entry('fileinfotpl_perm') or ""
+        return self.get_entry('fileinfotpl_perm') or ""
 
     def licenses(self):
         licenses = []
