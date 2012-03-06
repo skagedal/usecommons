@@ -39,7 +39,7 @@ def write_html(htmlfilename, titles):
 <html>
 <head><meta charset="utf-8" /></head>
 <body>
-<table>
+<table border="1">
 """)
 
     for title in titles:
