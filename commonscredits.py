@@ -6,6 +6,9 @@ from distutils.dir_util import mkpath
 from wikitools import wiki, page, category
 from bs4 import BeautifulSoup
 
+# Own libraries
+import stockphoto
+
 USER_AGENT = 'CommonsCredits/0.1; http://github.com/skagedal/commons-credits/'
 
 RE_LICENSE_CATEGORIES = [
@@ -79,6 +82,9 @@ class Credits:
         # Explicit credit line if there is one, otherwise build one
         return self.author() + " / " + ", ".join(self.licenses()) + " " + \
             self.commonslink("(Wikimedia Commons)")
+
+    def attribution(self):
+        return stockphoto.get_attribution_text(self.html, self.url, True)
 
 class Cache:
     """Provides caching. Currently caches forever."""

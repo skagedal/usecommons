@@ -51,7 +51,7 @@ def write_html(htmlfilename, titles):
             fp.write(u"<td>[file not found!]</td>\n")
             continue
 
-        fp.write(u"<td>%s</td>\n" % credits.credit_line())
+        fp.write(u"<td>%s</td>\n" % credits.attribution())
         fp.write(u"</tr>\n")
 
     fp.write(u"""</table>
