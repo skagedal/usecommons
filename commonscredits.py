@@ -6,33 +6,177 @@ from distutils.dir_util import mkpath
 from wikitools import wiki, page, category
 from bs4 import BeautifulSoup
 
-# Own libraries
-import stockphoto
-
 USER_AGENT = 'CommonsCredits/0.1; http://github.com/skagedal/commons-credits/'
 
-RE_LICENSE_CATEGORIES = [
-    (re.compile('Category:' + _re), txt) 
-    for (_re, txt) in
-    (r'CC[\- _]BY-SA.*', 'CC-BY-SA'),
-    (r'CC[\- _]BY.*', 'CC-BY'),
-    (r'CC[\- _]Zero.*', 'CC0'),
-    (r'GFDL.*', 'GNU Free Documentation License'),
-    (r'PD[\- _]Old.*', 'Public Domain'),
-    (r'PD[\- _]self.*', 'Public Domain'),
-    (r'PD[\- _]author.*', 'Public Domain'),
-    (r'PD.*', 'Public Domain'),
-    (r'FAL', 'Art Libre - Free Art'),
-    (r'Images requiring attribution', 'Attribution'),
-    (r'Copyrighted free use.*', 'Copyrighted Free Use'),
-    (r'Mozilla Public License', 'Mozilla Public License'),
-    (r'GPL', 'GNU General Public License'),
-    (r'LGPL', 'GNU Lesser General Public License'),
-    (r'Free screenshot.*', 'Free screenshot')
-]
+def _next_td(soup, id):
+    tag = soup.find(id = id)
+    if tag is not None:
+        return tag.find_next_sibling('td')
+    return None
 
-def _contents_html(tag):
+def _text(tag):
+    if tag is None:
+        return ""
+    return tag.get_text()       # or something
+
+def _html(tag):
+    if tag is None:
+        return ""
     return "".join(map(unicode, tag.contents))
+
+class License:
+    def __init__(self, tag):
+        self.tag = tag
+        self.link = tag.find(True, 'licensetpl_link')
+        self.short = tag.find(True, 'licensetpl_short')
+        self.long = tag.find(True, 'licensetpl_long')
+        self.attr = tag.find(True, 'licensetpl_attr')
+        self.aut = tag.find(True, 'licensetpl_aut')
+        self.link_req = tag.find(True, 'licensetpl_link_req')
+        self.attr_req = tag.find(True, 'licensetpl_attr_req')
+
+class Fields:
+    def __init__(self, soup):
+        self.soup = soup
+        self.fileinfotpl_aut = _next_td(soup, "fileinfotpl_aut")
+        self.fileinfotpl_src = _next_td(soup, "fileinfotpl_src")
+        self.fileinfotpl_credit = _next_td(soup, "fileinfotpl_credit")
+        self.fileinfotpl_desc = _next_td(soup, "fileinfotpl_desc")
+        self.fileinfotpl_date = _next_td(soup, "fileinfotpl_date")
+        self.fileinfotpl_perm = _next_td(soup, "fileinfotpl_perm")
+        self.own_work = soup.find(id = "own_work")
+        self.creator = soup.find(id = "creator")
+
+        self.licenses = [License(tag) 
+                         for tag in soup.find_all(True, "licensetpl")]
+
+
+        self.licenses = [x for x in self.licenses if _html(x.short) != ""]
+
+# Short JavaScript/jQuery to Python/Beautiful Soup guide:
+#   $.trim(string) --> string.strip() 
+#   string.match(regexp) --> re.search(pattern, string, flags)
+#   string.match(/^pattern/) --> re.match(pattern, string, flags)
+#   string.replace(/pattern/, repl) --> re.sub(pattern, repl, string, count = 1, flags = flags)
+#   string.replace(/pattern/g, repl) --> re.sub(pattern, repl, string, flags = flags)
+
+def get_author_attribution(fields, use_html):
+    fromCommons = False
+    content = _html if use_html else _text
+
+    author = _text(fields.fileinfotpl_aut).strip()
+    source = _text(fields.fileinfotpl_src).strip()
+    
+    # Remove boiler template; not elegant, but...
+    if "This file is lacking author information" in author:
+        author = ""
+    if re.match(r"[Uu]nknown$", author):
+        author = ""
+
+    author = re.sub(r"\s*\(talk\)", "", author, flags=re.IGNORECASE)
+
+    if "Original uploader was" in author:
+        author = re.sub(r"\s*Original uploader was\s*", "", author)
+        fromCommons = True
+
+    # Remove boiler template; not elegant, but...
+    if "This file is lacking source information" in source:
+        source = ""
+
+    if author != "" and fields.own_work is not None: 
+         # Remove "own work" notice
+         source = ""
+         fromCommons = True;
+
+    if author != "" and len(source) > 50:
+         # Remove long source info
+         source = ""
+
+    # \u25BC == &#9660; == BLACK DOWN-POINTING TRIANGLE
+    if author.startswith(u"[\u25BC]"):
+         author = author[:3]
+         author = author.split("Description")[0].strip()
+
+    attribution = author
+    if source != "":
+         if attribution != "":
+              attribution += " (%s)" % source
+         else:
+              attribution = source
+
+    return_author = attribution # might not need
+
+    if author != "":
+         # i18n.by_u
+         attribution = "By" + " " + attribution
+    else:
+         # i18n.see_page_for_author
+         attribution = "See page for author"
+
+    if fields.creator is not None:
+         attribution = _text(fields.creator)
+
+    if len(fields.licenses) > 0 and fields.licenses[0].aut is not None:
+        attribution = content(fields.licenses[0].aut)
+
+    if len(fields.licenses) > 0 and fields.licenses[0].attr is not None:
+        attribution = content(fields.license[0].attr)
+
+    if fields.fileinfotpl_credit is not None:
+        attribution = content(fields.fileinfotpl_credit)
+
+    return attribution
+			
+def get_license(fields, use_html):
+    attribution_required = True
+    gfdl_note = False
+
+    if len(fields.licenses) == 0:
+        # i18n.see_page_for_license
+        return "[" + "see page for license" + "]";
+    
+    for license in fields.licenses:
+        if license.attr_req == "false":
+            attribution_required = False
+        if "GFDL" in _html(license.short):
+            gfdl_note = True
+        if use_html and license.link is not None:
+            license.text = '<a href="' + _html(license.link) + '">' + \
+                _html(license.short) + '</a>'
+        else:
+	    if _html(license.link_req) == "true":
+                license.text = "%s (%s)" % (_html(license.short), link)
+            else:
+                license.text = _html(license.short)
+
+    texts = [l.text for l in fields.licenses]
+    if len(texts) > 1:
+        return " [" + texts[0] + " or " + ", ".join(texts[1:]) + "]"
+
+    return " [" + ", ".join(texts) + "]"
+
+def get_attribution_text(html, url, use_html):
+    text = ""
+    soup = BeautifulSoup(html)
+    fields = Fields(soup)
+   
+    license = get_license(fields, use_html)
+    attribution = get_author_attribution(fields, use_html)
+
+    # from = stockPhoto.fromCommons ? stockPhoto.i18n.from_wikimedia_commons : stockPhoto.i18n.via_wikimedia_commons;
+    fromtext = "from Wikimedia Commons"
+
+    if fields.fileinfotpl_credit is not None:
+        text = attribution
+    else:
+        text = attribution + license
+
+    if use_html:
+        text += ', <a href="' + url + '">' + fromtext + "</a>"
+    else:
+        text += fromtext
+
+    return text
 
 class Credits:
     def __init__(self, title, url, html, categories):
@@ -42,64 +186,11 @@ class Credits:
         self.soup = BeautifulSoup(html)
         self.categories = categories
     
-    def get_td_soup(self, id):
-        td1 = self.soup.find(id = id)
-        if not td1 is None:
-            return td1.find_next_sibling('td')
-        return None
-
-    def get_entry(self, id):
-        td = self.get_td_soup(id)
-        return _contents_html(td) if td else None
-
-    def description(self):
-        return self.get_entry('fileinfotpl_desc') or ""
-
-    def date(self):
-        return self.get_entry('fileinfotpl_date') or ""
-
-    def raw_author(self):
-        return self.get_entry('fileinfotpl_aut') or ""
-
-    def author(self):
-        td = self.get_td_soup('fileinfotpl_aut')
-        if td is None:
-            return ""
-        # Check for use of {{Creator}} template
-        creator = td.find(id = 'creator')
-        if creator is not None:
-            return _contents_html(creator)
-        else:
-            return _contents_html(td)
-        
-    def source(self):
-        return self.get_entry('fileinfotpl_src') or ""
-
-    def permission(self):
-        return self.get_entry('fileinfotpl_perm') or ""
-
-    def licenses(self):
-        licenses = []
-        for cat in self.categories:
-            for (re_, txt) in RE_LICENSE_CATEGORIES:
-                if (re_.match(cat)):
-                    licenses += [txt]
-        return licenses
-
-
-    def explicit_credit_line(self):
-        pass
-
     def commonslink(self, text):
         return '<a href="%s">%s</a>' % (self.url, text)
 
-    def credit_line(self):
-        # Explicit credit line if there is one, otherwise build one
-        return self.author() + " / " + ", ".join(self.licenses()) + " " + \
-            self.commonslink("(Wikimedia Commons)")
-
     def attribution(self):
-        return stockphoto.get_attribution_text(self.html, self.url, True)
+        return get_attribution_text(self.html, self.url, True)
 
 class Cache:
     """Provides caching. Currently caches forever."""
@@ -160,9 +251,6 @@ if __name__ == "__main__":
     title = 'File:Fuji_apple.jpg'
     commons = Commons()
     credits = commons.getCredits(title)
-    print (credits.categories)
-    print (len(credits.html))
-    print (credits.author())
-    print (credits.permission())
+    print credits.attribution()
 
     
