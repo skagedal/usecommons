@@ -1,9 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Use Commons</title>
+<meta charset="utf-8" />
+<link href="styles/shCore.css" rel="stylesheet" type="text/css" />
+<link href="styles/shThemeDefault.css" rel="stylesheet" type="text/css" />
+<script src="scripts/shCore.js" type="text/javascript"></script>
+<script src="scripts/shBrushPython.js" type="text/javascript"></script>
+<script src="scripts/shBrushRuby.js" type="text/javascript"></script>
+<script src="scripts/shBrushPhp.js" type="text/javascript"></script>
+
+<link rel="stylesheet" type="text/css" media="screen" href="usecommons.css" />
+<title>usecommons</title>
 </head>
-<body>
+<body><div>
+<h1>usecommons</h1>
 <p>By Simon Kågedal Reimer &lt;<a href="mailto:simon@kagedal.org">simon@kagedal.org</a>&gt;</p>
 
 <p>A python library to help with appropriate crediting when using content
@@ -11,54 +21,87 @@ from Wikimedia Commons.</p>
 
 <h2>Introduction</h2>
 
-The Wikimedia Commons <a href="http://commons.wikimedia.org/wiki/Commons:Project_scope">aims</a> to make available public domain and freely licensed educational media files for everyone. It's a beautiful thing. It's rules allow for uploaded files to give only two restrictions of redistribution: <em>copyleft</em> requirements and <em>attribution</em> requirements. When reusing content outside the Wikimedia projects, you have to be careful to respect these requirements. This can get quite hairy because of the free form, wild growing nature of a wiki.</p>
+<p>The <a href="http://commons.wikimedia.org/">Wikimedia
+Commons</a> <a href="http://commons.wikimedia.org/wiki/Commons:Project_scope">aims</a>
+to make available public domain and freely licensed educational media
+files for everyone. It's a beautiful thing.</p>
+
+<p>It's rules allow for uploaded files to give only two restrictions
+of redistribution: <em>copyleft</em> requirements
+and <em>attribution</em> requirements. When reusing content outside
+the Wikimedia projects, you have to be careful to respect these
+requirements. This can get quite hairy because of the free form, wild
+growing nature of a wiki.</p>
 
 <p>The <strong>usecommons</strong> library aims to give a simple solution for correctly attributing Wikimedia Commons content.</p>
 
 <h2>How do I use it?</h2>
 
-<pre>
+<pre class="brush: python">
 from usecommons import Commons
 commons = Commons()
 print(commons.get("Fuji apple.jpg").attribution())
 </pre>
 
-That's it! That's currently pretty much the whole API. It will print out HTML; if you'd rather get pure text, give the argument <code>use_html = False</code> to the <code>attribution</code> function.
+<p>That's it! That's currently pretty much the whole API. It will print
+out HTML; if you'd rather get pure text, give the
+argument <code>use_html = False</code> to the <code>attribution</code>
+function.</p>
 
 <h2>Where do I get it?</h2>
 
-Currently only <a href="//github.com/skagedal/usecommons/">from the git repository at GitHub</a>.
+Currently only <a href="//github.com/skagedal/usecommons/">from the
+git repository at GitHub</a>.
 
 <h2>What if I'm not a Python programmer?</h2>
 There's a web API you can use instead. For example, from PHP:
 
-<pre>
+<pre class="brush: php">
 $base_url = 'http://helgo.net/cgi-bin/simon/usecommons/webapi.py?file=';
 echo(file_get_contents($base_url + 'E_is_for_egg.ogg'));
 </pre>
 
 <p>Note: this URL and API will get most likely change.</p>
 
+<!--
 Or, from Ruby:
 
 <pre>
 http://www.igvita.com/2007/02/04/ruby-screen-scraper-in-60-seconds/
 </pre>
+-->
+Alternatively, to save a network access, you can install it as an
+executable and catch the standard output. Here is a
+Ruby example:
 
-Alternatively, to save a network access, you can install it as an executable and catch the standard output &ndash; here is, again, a Ruby example:
-<pre>
-html = %x[usecommons "Fuji_apple.jpg"]
+<pre class="brush: ruby">
+html = %x[python usecommons.py "Fuji_apple.jpg"]
+puts html
 </pre>
 
 <h2>Great, but not <em>quite</em> what I needed...</h2>
-I know. You want more flexibility. The raw metadata fields to format the way <em>you want</em>. The first aim of this project was, however, to provide a <em>really simple</em> solution to a common problem. As a next step, I might make a more flexible API. There is however already such a tool available as a web API, Magnus Manske's <a href="http://toolserver.org/~magnus/commonsapi.php">Commons API</a>, giving you access to all the metadata you might need as XML. There is currently some problems with the generated XML.
+
+<p>I know. You want more flexibility. The raw metadata fields to
+format the way <em>you want</em>. The first aim of this project was,
+however, to provide a <em>really simple</em> solution to a common
+problem.</p>
+
+<p>As a next step, I might make a more flexible API. There is however
+already such a tool available as a web API, Magnus
+Manske's <a href="http://toolserver.org/~magnus/commonsapi.php">Commons
+API</a>, giving you access to all the metadata you might need as
+XML. There is currently some problems with the generated XML.</p>
 
 <!-- <h2>How does it work?</h2> -->
 <h2>See also</h2>
 <ul>
 <li><a href="http://commons.wikimedia.org/wiki/Help:Machine-readable_data">Help:Machine-readable data</a></li>
-<li>/li>
-<li><a href="http://commons.wikimedia.org/wiki/MediaWiki:Gadget-Stockphoto.js">Gadget-Stockphoto.js</a></li>
+<li><a href="http://commons.wikimedia.org/wiki/MediaWiki:Gadget-Stockphoto.js">Gadget-Stockphoto.js</a> &ndash; usecommons code is basically a Python port of this</li>
 </ul>
 
+<script type="text/javascript">
+     SyntaxHighlighter.all()
+</script>
 
+</div></body>
+</html>

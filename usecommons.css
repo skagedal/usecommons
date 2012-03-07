@@ -1,0 +1,13 @@
+body {
+    text-align: center;
+}
+
+body div {
+    width: 600px;
+    margin: 0px auto;
+    text-align: left;
+}
+
+h1, h2 {
+    font-family: sans-serif;
+}
