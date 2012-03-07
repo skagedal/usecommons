@@ -236,19 +236,23 @@ class Cache:
         """Memoize the return value of `fun`. Save in a file recognized
         by `id`.  If `use_json`, save as JSON, otherwise, as raw string."""
         filepath = os.path.join(self.dir, urllib.quote(id, ''))
-        if os.path.isfile(filepath):
+        
+        try:
             fp = open(filepath, 'r')
-            if (use_json):
+            if use_json:
                 return json.load(fp)
             else:
                 return fp.read()
-        else:
+        except IOError:
             content = fun()
-            fp = open(filepath, 'w')
-            if (use_json):
-                json.dump(content, fp)
-            else:
-                fp.write(content)
+            try:
+                fp = open(filepath, 'w')
+                if use_json:
+                    json.dump(content, fp)
+                else:
+                    fp.write(content)
+            except IOError:
+                pass #logging.lo
             return content
 
 class Commons:
@@ -286,7 +290,10 @@ class Commons:
         return Credits(title, self.base_url + '/wiki/' + title, html, cats)
 
 if __name__ == "__main__":
-    title = 'File:Fuji_apple.jpg'
-    print Commons().get(title).attribution()
-
-    
+    if len(sys.argv) > 1:
+        print(Commons().get(u'File:' + sys.argv[1]).attribution())
+    else:
+        print(u"""usage: 
+python usecommons.py <filename>
+  where <filename> is a Commons page title for a file, without the 
+  namespace prefix. E.g.: python usecommons.py Fuji_apple.jpg""")
