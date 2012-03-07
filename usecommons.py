@@ -1,31 +1,57 @@
 # Standard Python libraries
-import urllib, urllib2, os.path, json, re
+import sys, urllib, urllib2, os.path, json, re
 from distutils.dir_util import mkpath
 
 # Third party libraries
-from wikitools import wiki, page, category
-from bs4 import BeautifulSoup
+HAVE_WIKITOOLS = True
+try:
+    from wikitools import wiki, page, category
+except ImportError:
+    HAVE_WIKITOOLS = False
+try:
+    from bs4 import BeautifulSoup
+    HAVE_BEAUTIFULSOUP = True
+    BEAUTIFULSOUP_VERSION = 4
+except ImportError:
+    try:
+        from BeautifulSoup import BeautifulSoup
+        HAVE_BEAUTIFULSOUP = True
+        BEAUTIFULSOUP_VERSION = 3
+    except ImportError:
+        sys.stderr.write("Please install Beautiful Soup.")
+        sys.exit(1)
 
 USER_AGENT = 'CommonsCredits/0.1; http://github.com/skagedal/commons-credits/'
 
 def _next_td(soup, id):
+    # Find the next <td> element that is a sibling of the element
+    # with the given `id`.
     tag = soup.find(id = id)
     if tag is not None:
-        return tag.find_next_sibling('td')
+        return tag.findNextSibling('td')
     return None
 
 def _text(tag):
+    # Get contents of tag as pure text.
     if tag is None:
         return ""
-    return tag.get_text()       # or something
+    return tag.getText()
 
 def _html(tag):
+    # Get contents of tag as html. 
     if tag is None:
         return ""
-    return "".join(map(unicode, tag.contents))
+    if BEAUTIFULSOUP_VERSION == 3:
+        return tag.renderContents()
+    else:
+        # There is no renderContents in bs4?
+        return "".join(map(unicode, tag.contents))
 
 class License:
+    """Class for storing license information."""
     def __init__(self, tag):
+        """Constructor. Call with a BeautifulSoup tag of the element
+        with class .licensetpl"""
         self.tag = tag
         self.link = tag.find(True, 'licensetpl_link')
         self.short = tag.find(True, 'licensetpl_short')
@@ -36,6 +62,7 @@ class License:
         self.attr_req = tag.find(True, 'licensetpl_attr_req')
 
 class Fields:
+    """Class for storing fields scraped from HTML."""
     def __init__(self, soup):
         self.soup = soup
         self.fileinfotpl_aut = _next_td(soup, "fileinfotpl_aut")
@@ -48,17 +75,23 @@ class Fields:
         self.creator = soup.find(id = "creator")
 
         self.licenses = [License(tag) 
-                         for tag in soup.find_all(True, "licensetpl")]
+                         for tag in soup.findAll(True, "licensetpl")]
 
 
         self.licenses = [x for x in self.licenses if _html(x.short) != ""]
 
 # Short JavaScript/jQuery to Python/Beautiful Soup guide:
-#   $.trim(string) --> string.strip() 
-#   string.match(regexp) --> re.search(pattern, string, flags)
-#   string.match(/^pattern/) --> re.match(pattern, string, flags)
-#   string.replace(/pattern/, repl) --> re.sub(pattern, repl, string, count = 1, flags = flags)
-#   string.replace(/pattern/g, repl) --> re.sub(pattern, repl, string, flags = flags)
+#   $.trim(string) --> 
+#       string.strip() 
+#   string.match(regexp) --> 
+#       re.search(pattern, string, flags)
+#   string.match(/^pattern/) --> 
+#       re.match(pattern, string, flags)
+#   string.replace(/pattern/, repl) --> 
+#       re.compile(pattern, flags).sub(repl, string, count = 1)
+#   string.replace(/pattern/g, repl) --> 
+#       re.compile(pattern, flags).sub(repl, string)
+#   (re.sub doesn't allow flags in Python versions < 2.7)
 
 def get_author_attribution(fields, use_html):
     fromCommons = False
@@ -73,7 +106,8 @@ def get_author_attribution(fields, use_html):
     if re.match(r"[Uu]nknown$", author):
         author = ""
 
-    author = re.sub(r"\s*\(talk\)", "", author, flags=re.IGNORECASE)
+    # author = re.sub(r"\s*\(talk\)", "", author, flags=re.IGNORECASE)
+    author = re.compile(r"\s*\(talk\)", flags=re.IGNORECASE).sub("", author)
 
     if "Original uploader was" in author:
         author = re.sub(r"\s*Original uploader was\s*", "", author)
@@ -218,8 +252,11 @@ class Cache:
             return content
 
 class Commons:
-    def __init__(self, base_url = 'http://commons.wikimedia.org'):
+    def __init__(self, 
+                 base_url = 'http://commons.wikimedia.org',
+                 cache_dir = "cache"):
         self.base_url = base_url
+        self.cache_dir = cache_dir
         self._site = None
         self.url_opener = urllib2.build_opener()
         self.url_opener.addheaders = [('User-agent', USER_AGENT)]
@@ -233,24 +270,23 @@ class Commons:
         url = self.base_url + '/w/index.php?action=render&title=' + title
         return self.url_opener.open(url).read()
 
-    def getCredits(self, title):
+    def get(self, title):
         """`title` is a full wiki title like 'File:Fuji_apple.jpg'"""
         def _getcats():
             return page.Page(self.site(), title).getCategories()
         def _gethtml():
             return self.getHTML(title)
 
-        cache = Cache(dir = 'cache')
-        return Credits(title, 
-                       self.base_url + '/wiki/' + title,
-                       cache.get(title + '.txt', _gethtml, False),
-                       cache.get(title + '.cats', _getcats, True))
-
+        cache = Cache(dir = self.cache_dir)
+        html = cache.get(title + '.txt', _gethtml, False)
+        if HAVE_WIKITOOLS:
+            cats = cache.get(title + '.cats', _getcats, True)
+        else:
+            cats = None
+        return Credits(title, self.base_url + '/wiki/' + title, html, cats)
 
 if __name__ == "__main__":
     title = 'File:Fuji_apple.jpg'
-    commons = Commons()
-    credits = commons.getCredits(title)
-    print credits.attribution()
+    print Commons().get(title).attribution()
 
     

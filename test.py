@@ -1,4 +1,5 @@
-import codecs, commonscredits, urllib2
+import codecs, urllib2
+import usecommons
 
 titles = [
     'File:Fuji_apple.jpg',
@@ -33,7 +34,7 @@ titles = [
 def write_html(htmlfilename, titles):
     fp = codecs.open(htmlfilename, encoding='utf-8', mode="w")
 
-    commons = commonscredits.Commons()
+    commons = usecommons.Commons()
 
     fp.write(u"""<!DOCTYPE html>
 <html>
@@ -46,7 +47,7 @@ def write_html(htmlfilename, titles):
         fp.write(u"<tr>\n")
         fp.write(u"<td>%s</td>\n" % title)
         try:
-            credits = commons.getCredits(title)
+            credits = commons.get(title)
         except urllib2.HTTPError as e:
             fp.write(u"<td>[file not found!]</td>\n")
             continue
