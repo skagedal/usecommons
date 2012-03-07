@@ -1,4 +1,15 @@
+
+# Emacs backup files.
 *~
+
+# Emacs auto-save files
+\#*\#
+
+# Not sure what these are!?
+.\#*
+
+# Python
 *.pyc
+
 cache
 test.html
