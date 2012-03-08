@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+#
 # Copyright (c) 2010-2011  Magnus Manske
 #           (c) 2011-2012  Krinkle
 #           (c) 2012-      Simon Kågedal Reimer
