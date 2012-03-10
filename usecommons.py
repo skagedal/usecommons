@@ -33,6 +33,10 @@
 import sys, urllib, urllib2, os.path, json, re
 from distutils.dir_util import mkpath
 
+# Standard in Python >2.7, otherwise install from:
+# http://code.google.com/p/argparse/
+import argparse
+
 # Third party libraries
 HAVE_WIKITOOLS = True
 try:
@@ -333,11 +337,20 @@ class Commons:
             cats = None
         return Credits(title, self.base_url + '/wiki/' + title, html, cats)
 
+def main():
+    desc = 'Get metadata for Wikimedia Commons files.'
+    parser = argparse.ArgumentParser(description = desc)
+    parser.add_argument('files', metavar='file', nargs='+',
+                        help='a Wikimedia Commons file, without namespace')
+    #parser.add_argument('--json', dest='json', action='store_const',
+    #                    const=True, default=False,
+    #                    help='output JSON')
+    args = parser.parse_args()
+
+    commons = Commons()
+    for file in args.files:
+        print(commons.get(u'File:' + file).attribution())
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        print(Commons().get(u'File:' + sys.argv[1]).attribution())
-    else:
-        print(u"""usage: 
-python usecommons.py <filename>
-  where <filename> is a Commons page title for a file, without the 
-  namespace prefix. E.g.: python usecommons.py Fuji_apple.jpg""")
+    main()
