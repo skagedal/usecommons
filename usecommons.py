@@ -35,16 +35,12 @@
 import sys, urllib, urllib2, os.path, json, re
 from distutils.dir_util import mkpath
 
-# Standard in Python >2.7, otherwise install from:
+# Standard in Python >=2.7, otherwise install from:
 # http://code.google.com/p/argparse/
 import argparse
 
 # Third party libraries
-HAVE_WIKITOOLS = True
-try:
-    from wikitools import wiki, page, category
-except ImportError:
-    HAVE_WIKITOOLS = False
+import simplemediawiki
 try:
     from bs4 import BeautifulSoup
     HAVE_BEAUTIFULSOUP = True
@@ -67,6 +63,14 @@ def _next_td(soup, id):
     if tag is not None:
         return tag.findNextSibling('td')
     return None
+
+def _no_namespace(s):
+    """Return string with MediaWiki namespace (e.g. "File:") removed"""
+    match = re.match(r'[a-zA-Z]+\:(.*)', s)
+    if match is not None:
+        return match.group(1)
+    else:
+        return s
 
 class Field:
     def __init__(self, tag):
@@ -135,13 +139,14 @@ class License:
 			
 
 
-class Credits:
-    def __init__(self, title, url, html, categories):
+class CommonsFile:
+    def __init__(self, title, url, html, metadata, filename):
         self.title = title
         self.url = url
         self.html = html
         self.soup = BeautifulSoup(html)
-        self.categories = categories 
+        self.metadata = metadata
+        self.filename = filename
 
         # "Raw" fields
         td_field = lambda s: Field(_next_td(self.soup, s))
@@ -165,7 +170,7 @@ class Credits:
         if use_html:
             return ', <a href="%s">%s</a>' % (self.url, fromtext)
         else:
-            return fromtext
+            return ', ' + fromtext
 
 
     def use_from_commons(self):
@@ -228,11 +233,14 @@ class Credits:
         if self.creator.exists():
              attribution = self.creator.text()
 
-        if len(self.licenses) > 0 and self.licenses[0].aut.exists():
-            attribution = self.licenses[0].aut.content(use_html)
+        license_authors = [lic for lic in self.licenses if lic.aut.exists()]
+        if len(license_authors) > 0:
+            attribution = license_authors[0].aut.contents(use_html)
 
-        if len(self.licenses) > 0 and self.licenses[0].attr.exists():
-            attribution = self.licenses[0].attr.content(use_html)
+        license_attributions = [lic for lic in self.licenses 
+                                if lic.attr.exists()]
+        if len(license_attributions) > 0:
+            attribution = license_attributions[0].attr.contents(use_html)
 
         return attribution        
 
@@ -302,56 +310,97 @@ class Cache:
                 else:
                     fp.write(content)
             except IOError:
-                pass #logging.lo
+                pass #logging.log
             return content
 
 class Commons:
     def __init__(self, 
                  base_url = 'http://commons.wikimedia.org',
-                 cache_dir = "cache"):
+                 cache_dir = "cache",
+                 download_dir = None):
         self.base_url = base_url
         self.cache_dir = cache_dir
+        self.download_dir = \
+            download_dir if download_dir is not None else cache_dir
         self._site = None
         self.url_opener = urllib2.build_opener()
         self.url_opener.addheaders = [('User-agent', USER_AGENT)]
 
     def site(self):
         if self._site is None:
-            self._site = wiki.Wiki(self.base_url + '/w/api.php')
+            api_url = self.base_url + '/w/api.php'
+            self._site = simplemediawiki.MediaWiki(api_url,
+                                                   user_agent = USER_AGENT)
         return self._site
 
-    def getHTML(self, title):
+    def get_metadata(self, title, width = None):
+        site = self.site()
+        query = {'action': 'query', 
+                 'titles': title,
+                 'prop': 'imageinfo',
+                 'iiprop': 'user|url'}
+        if width is not None:
+            query['iiurlwidth'] = str(width)
+        return site.call(query)
+
+    def get_html(self, title):
         url = self.base_url + '/w/index.php?action=render&title=' + title
         return self.url_opener.open(url).read()
 
-    def get(self, title):
+    def download(self, title, url):
+        mkpath(self.download_dir)
+        filename = os.path.join(self.download_dir, _no_namespace(title))
+        if not os.path.isfile(filename):
+            outfp = open(filename, 'w')
+            content = self.url_opener.open(url).read()
+            outfp.write(content)
+        return filename
+
+    def get(self, title, download = False, width = None):
         """`title` is a full wiki title like 'File:Fuji_apple.jpg'"""
-        def _getcats():
-            return page.Page(self.site(), title).getCategories()
+        def _getmetadata():
+            return self.get_metadata(title, width = width)
         def _gethtml():
-            return self.getHTML(title)
+            return self.get_html(title)
 
         cache = Cache(dir = self.cache_dir)
         html = cache.get(title + '.txt', _gethtml, False)
-        if HAVE_WIKITOOLS:
-            cats = cache.get(title + '.cats', _getcats, True)
-        else:
-            cats = None
-        return Credits(title, self.base_url + '/wiki/' + title, html, cats)
+        metadata = cache.get(title + '.meta', _getmetadata, True)
+        imageinfo = metadata['query']['pages'].items()[0][1]['imageinfo'][0]
+        filename = None
+        if download:
+            if width is not None:
+                filename = self.download(title, imageinfo['thumburl'])
+            else:
+                filename = self.download(title, imageinfo['url'])
+        return CommonsFile(title, self.base_url + '/wiki/' + title, 
+                           html, metadata, filename)
 
 def main():
     desc = 'Get metadata for Wikimedia Commons files.'
     parser = argparse.ArgumentParser(description = desc)
     parser.add_argument('files', metavar='file', nargs='+',
                         help='a Wikimedia Commons file, without namespace')
-    #parser.add_argument('--json', dest='json', action='store_const',
-    #                    const=True, default=False,
-    #                    help='output JSON')
+    parser.add_argument('--format', 
+                        choices = ['html', 'json', 'xml'],
+                        default = 'html', 
+                        help = 'output format')
+    parser.add_argument('--strip-html', 
+                        action = 'store_const', const = True, default = False,
+                        help = 'strip HTML from credit lines')
+    parser.add_argument('--download', action = 'store_const', 
+                        const = True, default = False,
+                        help = 'also download files')
+    parser.add_argument('--width', metavar='PIXELS', type=int,
+                        help = 'width to use when downloading images')
     args = parser.parse_args()
 
     commons = Commons()
     for file in args.files:
-        print(commons.get(u'File:' + file).attribution())
+        commonsfile = commons.get(u'File:' + file, 
+                                  download = args.download,
+                                  width = args.width)
+        print(commonsfile.attribution(not args.strip_html))
 
 
 if __name__ == "__main__":
