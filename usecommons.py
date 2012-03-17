@@ -369,7 +369,7 @@ class Commons:
         imageinfo = metadata['query']['pages'].items()[0][1]['imageinfo'][0]
         filename = None
         if download:
-            if width is not None:
+            if 'thumburl' in imageinfo and imageinfo['thumburl'] != '':
                 filename = self.download(title, imageinfo['thumburl'])
             else:
                 filename = self.download(title, imageinfo['url'])
