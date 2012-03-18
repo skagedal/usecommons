@@ -364,7 +364,7 @@ class Commons:
             return self.get_html(title)
 
         cache = Cache(dir = self.cache_dir)
-        html = cache.get(title + '.txt', _gethtml, False)
+        html = cache.get(title + '.txt', _gethtml, False).decode('utf-8')
         metadata = cache.get(title + '.meta', _getmetadata, True)
         imageinfo = metadata['query']['pages'].items()[0][1]['imageinfo'][0]
         filename = None
